@@ -308,7 +308,7 @@ FSSM.monitor do
            puts "Update to #{r}".yellow
            #puts "Build deps.js is start".blue
            getPages().map do  |a|
-              makeDeeps(getPagesFolder(a))
+              makeBemdecl(getPagesFolder(a))
            end 
            #puts "Build deps.js is done".green
     end
