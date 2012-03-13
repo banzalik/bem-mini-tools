@@ -318,7 +318,7 @@ FSSM.monitor do
     create do |b, r|
       puts "Create to #{r}".yellow
       getPages().map do  |a|
-        makeDeeps(getPagesFolder(a))
+        makeBemdecl(getPagesFolder(a))
      end 
     end
 
