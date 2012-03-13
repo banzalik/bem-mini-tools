@@ -1,0 +1,329 @@
+#!/usr/bin/ruby
+$:.unshift(File.join(File.dirname(__FILE__), 'lib'))
+
+require 'rubygems'
+require 'fssm'
+
+# перменные окружения
+$levels = ' -l bem-mini-offline/ -l blocks/ '
+$pages = 'pages'
+$bemhtml = 'bem-mini-offline/i-bem/bem/techs/bemhtml.js'
+$html = 'bem-mini-offline/i-bem/bem/techs/html.js'
+
+
+# Подсветка строк
+class String
+
+    COLORIZE = true
+
+    def directory?
+        File.directory? self
+    end
+
+    def red; colorize("\e[31m"); end
+    def green; colorize("\e[32m"); end
+    def yellow; colorize("\e[33m"); end
+    def blue; colorize("\e[34m"); end
+
+    private
+
+    # Функция для подсвечивания строки с помошью ANSI кодов...
+    def colorize(color_code)
+        return self unless COLORIZE
+        unless PLATFORM =~ /win32/
+            "#{color_code}#{self}\e[0m"
+        else
+            self
+        end
+    end
+
+end
+
+
+# функции ребилда
+def makeBemdecl(page)
+  #puts "Create bemdecl.js start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.bemdecl.js"
+  %x[#{rm}]
+  command = "bem create block -l " + $pages + " -t bemdecl.js #{page}"
+  #puts command
+  %x{#{command}}
+  message = "Create " + $pages + "/#{page}/#{page}.bemdecl.js done"
+  puts message.red
+  return page
+end
+
+def makeDeeps(page)
+  #puts "Create deps.js start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.deps.js"
+  %x[#{rm}]
+  command = "bem build " + $levels + " -d " + $pages + "/#{page}/#{page}.bemdecl.js -t deps.js -o " + $pages + "/#{page} -n #{page}"
+  #puts command
+  %x{#{command}}
+  message = "Create " + $pages + "/#{page}/#{page}.deps.js done" 
+  puts message.red
+  return page
+end
+
+def makeBemhtml(page)
+  #puts "Create bemhtml.js start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.bemhtml.js"
+  %x[#{rm}]
+  command = "bem build " + $levels + " -d " + $pages + "/#{page}/#{page}.deps.js -t " +  $bemhtml + " -o " + $pages + "/#{page} -n #{page}"
+  #puts command
+  %x{#{command}}
+  message = "Create "+ $pages + "/#{page}/#{page}.bemhtml.js done"
+  puts message.red
+  return page
+end
+
+def makeHtml(page)
+  #puts "Create html start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.html"
+  %x[#{rm}]
+  command = "bem create block -l " + $pages + " -t " +  $html + " #{page}"
+  #puts command
+  %x{#{command}}
+  message = "Create "+ $pages + "/#{page}/#{page}.html done" 
+  puts message.red
+  return page
+end
+
+def makeStyl(page)
+  #puts "Create Styl start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.styl"
+  %x[#{rm}]
+  command = "bem build " + $levels + " -d " + $pages + "/#{page}/#{page}.deps.js -t styl -o " + $pages + "/#{page} -n #{page}"
+  #puts command
+  %x{#{command}}
+  message = "Create "+ $pages + "/#{page}/#{page}.styl done"
+  puts message.red
+  return page
+end
+
+def buildStyl(files)
+  #puts "Build style start".blue
+    files.map do |a|
+      command = "stylus --include-css " + $pages + "/#{a}"
+      #puts command
+      %x{#{command}}
+      message = "Create CSS in "+$pages + "/#{a} done"
+      puts message.red
+  end          
+end
+
+
+# вспомогательные функции
+# поиск страниц => pages/index pages/test
+def getPages()
+  return Dir[$pages+'/*/']
+end
+
+# поиск страниц => index test
+def getPagesIndex(pages)
+  index = Array.new()
+  pages.map{ |a| index = index+[File.basename(a)] }
+  return index
+end
+
+# поиск файлов технологий в pages
+def getFilesIndex(tech)
+  return Dir[$pages+'/*/*.'+tech]
+end
+
+# вывод имени страницы по тупи
+def getPagesFold(path)
+  return path.split('/')[0]
+end
+
+# вывод имени страницы по тупи
+def getPagesFolder(path)
+  return path.split('/')[-1]
+end
+
+
+
+# мониторинг файлов
+
+FSSM.monitor do
+
+
+  # *.bemjson.js
+  path 'pages/' do glob '**/*.bemjson.js'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build project is start".blue
+           page = getPagesFold(r)
+           makeBemdecl(page)
+           #puts "Build project is done".green
+    end
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    create { |b, r| puts "Create to #{r}".yellow }
+  end
+
+  # *.bemdecl.js
+  path 'pages/' do glob '**/*.bemdecl.js'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build project is start".blue
+           page = getPagesFold(r)
+           makeDeeps(page)
+           #puts "Build project is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      page = getPagesFold(r)
+      makeDeeps(page)
+    end
+
+  end
+
+
+  # *.deps.js
+  path 'pages/' do glob '**/*.deps.js'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build project is start".blue
+           page = getPagesFold(r)
+           makeBemhtml(page)
+           makeStyl(page)
+           #puts "Build project is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      page = getPagesFold(r)
+      makeBemhtml(page)
+      makeStyl(page)
+    end
+
+  end
+
+  # *.bemhtml.js
+  path 'pages/' do glob '**/*.bemhtml.js'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build project is start".blue
+           page = getPagesFold(r)
+           makeHtml(page)
+           #puts "Build project is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      page = getPagesFold(r)
+      makeHtml(page)
+    end
+
+  end
+
+  # *.styl
+  path 'pages/' do glob '**/*.styl'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build project is start".blue
+           buildStyl(r)
+           #puts "Build project is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      #puts "Create to #{r}".yellow
+      buildStyl(r)
+    end
+
+  end
+
+  # мониторинг изменения blocks
+
+  # *.styl
+  path 'blocks/' do glob '**/*.styl'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build styl is start".blue
+           getPages().map do  |a|
+              path = getPagesFolder(a)+"/"+getPagesFolder(a)+'.styl'
+              buildStyl(path)
+           end 
+           #puts "Build styl is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      getPages().map do  |a|
+        path = getPagesFolder(a)+"/"+getPagesFolder(a)+'.styl'
+        buildStyl(path)
+     end 
+    end
+
+  end
+
+
+  
+  # *.bemhtml
+  path 'blocks/' do glob '**/*.bemhtml'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build bemhtml is start".blue
+           getPages().map do  |a|
+              makeBemhtml(getPagesFolder(a))
+           end 
+           #puts "Build bemhtml is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      getPages().map do  |a|
+        makeBemhtml(getPagesFolder(a))
+     end 
+    end
+
+  end
+
+
+  
+  # *.deps.js
+  path 'blocks/' do glob '**/*.deps.js'
+
+    update do |b, r|
+           puts "Update to #{r}".yellow
+           #puts "Build deps.js is start".blue
+           getPages().map do  |a|
+              makeDeeps(getPagesFolder(a))
+           end 
+           #puts "Build deps.js is done".green
+    end
+    
+    delete { |b, r| puts "Delete to #{r}".yellow }
+    
+    create do |b, r|
+      puts "Create to #{r}".yellow
+      getPages().map do  |a|
+        makeDeeps(getPagesFolder(a))
+     end 
+    end
+
+  end
+
+  
+
+end
