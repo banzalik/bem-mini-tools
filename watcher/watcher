@@ -101,6 +101,20 @@ def makeStyl(page)
   return page
 end
 
+def makeCSS(page)
+  #puts "Create Styl start".blue
+  rm = "rm " + $pages + "/#{page}/#{page}.css"
+  %x[#{rm}]
+  command = "bem build " + $levels + " -d " + $pages + "/#{page}/#{page}.deps.js -t css -o " + $pages + "/#{page} -n #{page}"
+  #puts command
+  %x{#{command}}
+  command = "bem build " + $levels + " -d " + $pages + "/#{page}/#{page}.deps.js -t ie.css -o " + $pages + "/#{page} -n #{page}"
+  %x{#{command}}
+  message = "Create "+ $pages + "/#{page}/#{page}.styl done"
+  puts message.red
+  return page
+end
+
 def buildStyl(files)
   #puts "Build style start".blue
     files.map do |a|
